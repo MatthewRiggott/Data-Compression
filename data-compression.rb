@@ -1,5 +1,4 @@
-# YOUR CODE GOES HERE
-require 'benchmark'
+
 require 'pry'
 
 class Trie < Hash
@@ -31,7 +30,7 @@ class Trie < Hash
   end
 
   #if hash[key] = nil return value
-  def get_vals(binary)
+  def decompress_binary_to_file(binary, filename)
     return_string = ""
     cur = self
     (binary + "^").chars.each do |c|
@@ -43,8 +42,8 @@ class Trie < Hash
         cur = cur[c]
       end
     end
-
-    return return_string
+    binding.pry
+    File.open(filename, 'w+') {|f| f.write(return_string) }
   end
 end
 
@@ -100,41 +99,79 @@ def new_dictionary(sorted_hash)
   return results
 end
 
-def get_file()
-  file = File.read("moby_dick_book.txt")
+def get_file(filepath)
+  file = File.read(filepath)
   return file
 end
 
-def decode(binary)
+def fetch_dictionary(binary)
+  dict_string = binary.gsub(/({.+})/)
+  eval(dict_string.to_a[0])
+end
 
-
+def fetch_content(binary)
+  bin = binary.gsub(/}(.+)/).to_a[0]
+  bin[0] = ""
+  return bin
 end
 
 def encode_text(text, dictionary)
   encrypter = dictionary
   binary_out = ""
   text.each_char do |letter|
-    if encrypter[letter].nil?
-      binding.pry
-    end
     binary_out = binary_out + encrypter[letter]
-    # WRITE TO TEXT FILE
   end
-  return binary_out
+  binary_out
 end
 
+
+def run_compression_script
+  arg0 = nil
+  arg1 = nil
+  if ARGV[0].nil? && ARGV[1].nil?
+    puts "Need to enter -filepath and (-C)ompress or (-U)ncompress"
+    return nil
+  else
+    arg0 = ARGV[0].reverse.chop.reverse
+    arg1 = ARGV[1].reverse.chop.reverse
+  end
+  file = get_file(arg0)
+
+  if arg1.upcase == "C"
+    #compress
+    puts "zipping #{arg1}"
+    frequency = get_count(get_file(arg0))
+    chart = new_dictionary(frequency).to_h
+    binary_encoding = encode_text(get_file(arg0), chart)
+    output = chart.to_s + binary_encoding
+    File.open("#{arg0}.compressed", 'w+') {|f| f.write(output) }
+
+  elsif arg1.upcase == "U"
+    #uncompress
+    trie = Trie.new
+    puts "unzipping #{arg0}"
+    file = File.open("#{arg0}", 'r')
+    contents = file.read
+    decoder = fetch_dictionary(contents)
+    content = fetch_content(contents)
+    decoder.each do |k, v|
+      trie.build(v, k)
+    end
+    arg0.slice!('.compressed')
+    filename = arg0.insert(-5, '-uncompressed')
+    trie.decompress_binary_to_file(content, filename)
+  else
+    puts "Invalid argument. '-C' to compress, '-U' to decompress."
+  end
+
+end
 t = Trie.new
+run_compression_script
 
-frequency = get_count(get_file)
-chart = new_dictionary(frequency)
-chart = chart.to_h
-puts "binary mapping built"
-binary_encoding = encode_text(get_file, chart)
-puts binary_encoding
-puts "building decompression tree"
-chart.each do |k, v|
-  t.build(v, k)
-end
-puts "Decompressing......"
-puts t.get_vals(binary_encoding)
+# puts "building decompression tree"
+# chart.each do |k, v|
+#   t.build(v, k)
+# end
+# puts "Decompressing......"
+# puts t.get_vals(binary_encoding)
 
